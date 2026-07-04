@@ -1,0 +1,8 @@
+# Core automation + screen control
+pyautogui>=0.9.54
+
+# Enables the confidence= threshold for fuzzy image matching in PyAutoGUI.
+opencv-python>=4.8.0
+
+# Screenshotting / image handling (pulled in by PyAutoGUI, pinned for clarity).
+pillow>=10.0.0
