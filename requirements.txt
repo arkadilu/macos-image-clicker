@@ -6,3 +6,7 @@ opencv-python>=4.8.0
 
 # Screenshotting / image handling (pulled in by PyAutoGUI, pinned for clarity).
 pillow>=10.0.0
+
+# Desktop GUI (macro_clicker_gui.py). Renders an HTML/CSS UI in a native window
+# using the system WebView — no bundled browser. Pulls in pyobjc on macOS.
+pywebview>=5.0

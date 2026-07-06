@@ -122,6 +122,37 @@ python macro_clicker.py --button right --double --move-duration 0.2
 
 ---
 
+## 3. The desktop GUI (`macro_clicker_gui.py`)
+
+A point-and-click front end over the same engine — rendered as a small HTML/CSS
+app in a native macOS window (via [pywebview](https://pywebview.flowrl.com/),
+which uses the system WebView — no bundled browser). It lets you:
+
+- **Capture target** — drag a box straight over the screen to grab the button,
+  instead of Cmd+Shift+4 → save → rename. The crop is matched from memory.
+- **Pick region** — same drag gesture to limit the search area (faster scans).
+- **Find once** — locate the target and *flash a highlight* where it matched, so
+  you can tune the confidence slider before running for real.
+- **Live dashboard** — status light, click/miss counters, elapsed time, last-match
+  coordinates and a log, all updating while it runs (the window never freezes).
+
+### Install
+
+```bash
+pip install -r requirements.txt   # includes pywebview
+```
+
+### Run
+
+```bash
+python macro_clicker_gui.py
+```
+
+Same macOS permissions as the CLI (**Accessibility** + **Screen Recording**).
+It works on the **main display only** — capture/region/click all target that screen.
+
+---
+
 ## Which should I use?
 
 - **Just want it to work, no terminal:** SikuliX (free) or Keyboard Maestro (paid).

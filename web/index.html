@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Macro Clicker</title>
+<style>
+  :root {
+    --bg:#0f1115; --card:#171a21; --card2:#1c2029; --line:rgba(255,255,255,.08);
+    --txt:#e7e9ee; --muted:#8b90a0; --accent:#4da3ff; --ok:#34c759; --err:#ff453a;
+    --radius:14px;
+  }
+  * { margin:0; box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    background:radial-gradient(1200px 600px at 80% -10%, #1a2740 0%, var(--bg) 55%);
+    color:var(--txt); font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    padding:18px; -webkit-user-select:none; user-select:none;
+  }
+  h1 { font-size:17px; font-weight:700; letter-spacing:.2px; }
+  .sub { color:var(--muted); font-size:12.5px; }
+  header { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+  .brand { width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
+    background:linear-gradient(135deg,var(--accent),#7bd0ff); font-size:16px; }
+  .grid { display:grid; grid-template-columns:1fr 1.05fr; gap:16px; align-items:start; }
+  .col { display:flex; flex-direction:column; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; }
+  .card h2 { font-size:11px; text-transform:uppercase; letter-spacing:1.4px;
+    color:var(--muted); margin-bottom:12px; font-weight:700; }
+
+  /* target */
+  .target { display:flex; gap:14px; align-items:center; }
+  .thumb { width:104px; height:84px; border-radius:10px; border:1px solid var(--line);
+    background:#0c0e12 repeating-linear-gradient(45deg,#14171d 0 8px,#0f1218 8px 16px);
+    display:grid; place-items:center; color:var(--muted); font-size:11px; overflow:hidden; flex:none; }
+  .thumb img { max-width:100%; max-height:100%; display:block; image-rendering:pixelated; }
+  .target-actions { display:flex; flex-direction:column; gap:8px; flex:1; }
+  .info { color:var(--muted); font-size:12px; word-break:break-all; }
+
+  /* controls */
+  .row { display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:7px 0; border-bottom:1px solid var(--line); }
+  .row:last-child { border-bottom:0; }
+  .row label { color:var(--muted); }
+  input[type=range] { -webkit-appearance:none; height:4px; border-radius:4px; width:150px;
+    background:linear-gradient(90deg,var(--accent) var(--fill,60%),#2a2f3a var(--fill,60%)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px;
+    border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.5); cursor:pointer; }
+  input[type=number] { width:78px; }
+  input[type=number], select { background:var(--card2); color:var(--txt);
+    border:1px solid var(--line); border-radius:8px; padding:6px 8px; font:inherit; }
+  .val { min-width:38px; text-align:right; font-variant-numeric:tabular-nums; }
+  .toggle { position:relative; width:40px; height:23px; flex:none; }
+  .toggle input { display:none; }
+  .toggle span { position:absolute; inset:0; border-radius:999px; background:#2a2f3a;
+    transition:.15s; cursor:pointer; }
+  .toggle span::after { content:""; position:absolute; top:3px; left:3px; width:17px; height:17px;
+    border-radius:50%; background:#fff; transition:.15s; }
+  .toggle input:checked + span { background:var(--accent); }
+  .toggle input:checked + span::after { transform:translateX(17px); }
+
+  /* buttons */
+  button { font:inherit; font-weight:600; border-radius:9px; padding:9px 14px; cursor:pointer;
+    border:1px solid var(--line); background:var(--card2); color:var(--txt); transition:.12s; }
+  button:hover { border-color:rgba(255,255,255,.22); }
+  button:disabled { opacity:.4; cursor:default; }
+  button.primary { background:var(--accent); border-color:transparent; color:#04121f; }
+  button.danger  { background:var(--err); border-color:transparent; color:#fff; }
+  .btnrow { display:flex; gap:10px; }
+  .grow { flex:1; }
+
+  /* dashboard */
+  .pill { border-radius:12px; padding:11px; text-align:center; font-weight:700; font-size:15px;
+    letter-spacing:.3px; background:var(--muted); color:#0c0e12; transition:.15s; }
+  .tiles { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0; }
+  .tile { background:var(--card2); border:1px solid var(--line); border-radius:11px; padding:11px 13px; }
+  .tile .k { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.8px; }
+  .tile .v { font-size:22px; font-weight:700; margin-top:3px; font-variant-numeric:tabular-nums; }
+
+  /* log */
+  .logcard { flex:1; display:flex; flex-direction:column; min-height:150px; }
+  #log { flex:1; overflow:auto; background:#0c0e12; border:1px solid var(--line); border-radius:10px;
+    padding:10px; font:12px/1.5 ui-monospace,Menlo,monospace; color:#c7ccd8;
+    white-space:pre-wrap; word-break:break-word; }
+  #log .t { color:#5c6373; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">🎯</div>
+    <div>
+      <h1>Macro Clicker</h1>
+      <div class="sub">Find a picture on screen and click it — no coordinates.</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT -->
+    <div class="col">
+      <div class="card">
+        <h2>Target</h2>
+        <div class="target">
+          <div class="thumb" id="thumb">no target</div>
+          <div class="target-actions">
+            <button class="primary" onclick="capture()">📷&nbsp; Capture target</button>
+            <button onclick="loadPng()">📂&nbsp; Load image…</button>
+            <div class="info" id="targetInfo">Capture or load the button you want clicked.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Settings</h2>
+        <div class="row">
+          <label>Confidence</label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="conf" min="0.5" max="1" step="0.01" value="0.9">
+            <span class="val" id="confVal">0.90</span>
+          </div>
+        </div>
+        <div class="row"><label>Interval (s)</label>
+          <input type="number" id="interval" min="0" step="0.1" value="1.0"></div>
+        <div class="row"><label>Click limit (0 = ∞)</label>
+          <input type="number" id="clicks" min="0" step="1" value="0"></div>
+        <div class="row"><label>Move duration (s)</label>
+          <input type="number" id="move" min="0" step="0.1" value="0.0"></div>
+        <div class="row"><label>Start delay (s)</label>
+          <input type="number" id="delay" min="0" step="0.5" value="2.0"></div>
+        <div class="row"><label>Mouse button</label>
+          <select id="button"><option>left</option><option>right</option><option>middle</option></select></div>
+        <div class="row"><label>Double-click</label>
+          <span class="toggle"><input type="checkbox" id="double"><span></span></span></div>
+        <div class="row"><label>Grayscale match</label>
+          <span class="toggle"><input type="checkbox" id="gray"><span></span></span></div>
+        <div class="row"><label>Search region</label><span id="regionText" style="color:var(--accent)">Full screen</span></div>
+        <div class="btnrow" style="margin-top:12px">
+          <button class="grow" onclick="pickRegion()">🎯&nbsp; Pick region</button>
+          <button onclick="clearRegion()">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col" style="min-height:420px">
+      <div class="card">
+        <h2>Status</h2>
+        <div class="pill" id="pill">Idle</div>
+        <div class="tiles">
+          <div class="tile"><div class="k">Clicks</div><div class="v" id="clicksV">0</div></div>
+          <div class="tile"><div class="k">Misses</div><div class="v" id="missesV">0</div></div>
+          <div class="tile"><div class="k">Elapsed</div><div class="v" id="elapsedV">00:00</div></div>
+          <div class="tile"><div class="k">Last match</div><div class="v" id="lastV">—</div></div>
+        </div>
+        <div class="btnrow">
+          <button class="grow" onclick="findOnce()">🔍&nbsp; Find once</button>
+          <button class="primary" id="startBtn" onclick="start()">▶&nbsp; Start</button>
+          <button class="danger" id="stopBtn" onclick="stop()" disabled>■&nbsp; Stop</button>
+        </div>
+      </div>
+
+      <div class="card logcard">
+        <h2>Log</h2>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let hasTarget = false, running = false, terminal = false;
+  let elapsedTimer = null, startedAt = 0;
+
+  function api() { return window.pywebview && window.pywebview.api; }
+  function log(msg) {
+    const el = $('log');
+    const d = new Date();
+    const t = [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+    el.innerHTML += '<span class="t">' + t + '</span>  ' + msg + '\n';
+    el.scrollTop = el.scrollHeight;
+  }
+  function setPill(text, kind) {
+    const p = $('pill');
+    p.textContent = text;
+    p.style.background = kind === 'ok' ? 'var(--ok)' : kind === 'err' ? 'var(--err)'
+                        : kind === 'busy' ? 'var(--accent)' : 'var(--muted)';
+    p.style.color = kind === 'err' ? '#fff' : '#0c0e12';
+  }
+  function setRunning(on) {
+    running = on;
+    $('startBtn').disabled = on;
+    $('stopBtn').disabled = !on;
+    if (on) { terminal = false; startElapsed(); } else { stopElapsed(); }
+  }
+  function startElapsed() {
+    startedAt = Date.now(); $('elapsedV').textContent = '00:00';
+    elapsedTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - startedAt) / 1000);
+      $('elapsedV').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    }, 500);
+  }
+  function stopElapsed() { if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; } }
+
+  function collectSpec() {
+    return {
+      confidence: parseFloat($('conf').value),
+      interval: parseFloat($('interval').value) || 0,
+      clicks: parseInt($('clicks').value) || 0,
+      button: $('button').value,
+      double: $('double').checked,
+      grayscale: $('gray').checked,
+      move_duration: parseFloat($('move').value) || 0,
+      start_delay: parseFloat($('delay').value) || 0,
+    };
+  }
+  function needTarget() {
+    if (!hasTarget) { log('⚠ Capture or load a target first.'); setPill('No target', 'err'); return false; }
+    return true;
+  }
+  function setTarget(uri, info) {
+    $('thumb').innerHTML = '<img src="' + uri + '">';
+    $('targetInfo').textContent = info;
+    hasTarget = true;
+  }
+
+  // Confidence slider fill + label.
+  $('conf').addEventListener('input', e => {
+    $('confVal').textContent = parseFloat(e.target.value).toFixed(2);
+    e.target.style.setProperty('--fill', ((e.target.value - 0.5) / 0.5 * 100) + '%');
+  });
+  $('conf').dispatchEvent(new Event('input'));
+
+  // Actions.
+  function capture() { const a = api(); if (a) a.begin_capture(); }
+  function pickRegion() { const a = api(); if (a) a.begin_pick_region(); }
+  function clearRegion() { const a = api(); if (a) a.clear_region().then(() => { $('regionText').textContent = 'Full screen'; }); }
+  function loadPng() {
+    const a = api(); if (!a) return;
+    a.load_png().then(r => {
+      if (r && r.ok) { setTarget(r.uri, r.info); log('Loaded target.'); }
+      else if (r && r.error) log('⚠ ' + r.error);
+    });
+  }
+  function findOnce() {
+    if (!needTarget()) return;
+    const a = api(); if (!a) return;
+    setPill('Searching…', 'busy');
+    a.find_once(collectSpec()).then(r => {
+      if (!r || !r.ok) { setPill('Error', 'err'); log('⚠ ' + ((r && r.error) || 'find failed')); return; }
+      if (r.found) { setPill('Found', 'ok'); $('lastV').textContent = r.point.join(', ');
+        log('Find once: matched at (' + r.point.join(', ') + ').'); }
+      else { setPill('Not found', 'err'); log('Find once: not found — try lowering confidence.'); }
+    });
+  }
+  function start() {
+    if (!needTarget()) return;
+    const a = api(); if (!a) return;
+    $('clicksV').textContent = '0'; $('missesV').textContent = '0'; $('lastV').textContent = '—';
+    setRunning(true); setPill('Starting…', 'busy'); log('── started ──');
+    a.start(collectSpec()).then(r => {
+      if (!r || !r.ok) { setRunning(false); setPill('Idle', 'idle'); log('⚠ ' + ((r && r.error) || 'could not start')); }
+    });
+  }
+  function stop() { const a = api(); if (a) a.stop(); setPill('Stopping…', 'idle'); }
+
+  // Pushed from Python.
+  window.onTargetCaptured = d => { setTarget(d.uri, d.info); log('Captured target.'); };
+  window.onRegionPicked = d => { $('regionText').textContent = d.text; log('Region set to ' + d.text + '.'); };
+  window.onClickerEvent = e => {
+    switch (e.kind) {
+      case 'searching': setPill('Searching…', 'busy'); break;
+      case 'miss': $('missesV').textContent = e.misses; break;
+      case 'click':
+        $('clicksV').textContent = e.clicks; $('missesV').textContent = '0';
+        if (e.point) $('lastV').textContent = e.point.join(', ');
+        setPill('Clicked', 'ok'); log('✓ clicked (' + e.point.join(', ') + ') — total ' + e.clicks); break;
+      case 'limit': terminal = true; setRunning(false); setPill('Done', 'ok'); log('Reached click limit (' + e.clicks + ').'); break;
+      case 'failsafe': terminal = true; setRunning(false); setPill('Fail-safe', 'err'); log('Fail-safe triggered (mouse hit a corner).'); break;
+      case 'error': terminal = true; setRunning(false); setPill('Error', 'err'); log('⚠ ' + e.message); break;
+      case 'stopped':
+        setRunning(false);
+        if (!terminal) { setPill('Idle', 'idle'); log('── stopped ──'); }
+        break;
+    }
+  };
+</script>
+</body>
+</html>
