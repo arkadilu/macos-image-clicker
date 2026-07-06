@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import argparse
 import sys
+import threading
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable
 
 try:
     import pyautogui
@@ -31,6 +33,9 @@ except ImportError:
     sys.exit(
         "PyAutoGUI is not installed. Run:  pip install -r requirements.txt"
     )
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 
 # PyAutoGUI fail-safe: shoving the cursor into a screen corner aborts the run.
@@ -78,12 +83,18 @@ def screen_scale(haystack_size: tuple[int, int]) -> tuple[float, float]:
 
 
 def find_target(
-    needle: str,
+    needle: str | Image.Image,
     confidence: float,
     grayscale: bool,
     region: Region | None,
 ) -> tuple[int, int] | None:
-    """Return the click point in logical points, or None if not found."""
+    """Return the click point in logical points, or None if not found.
+
+    `needle` may be a path or an in-memory PIL image (so a GUI can match a
+    freshly captured crop without saving it). A missing path raises
+    FileNotFoundError and an unavailable confidence match (no OpenCV) raises
+    ValueError — callers decide how to surface those.
+    """
     haystack = pyautogui.screenshot()
     scale_x, scale_y = screen_scale(haystack.size)
 
@@ -104,14 +115,6 @@ def find_target(
         )
     except pyautogui.ImageNotFoundException:
         return None
-    except FileNotFoundError:
-        sys.exit(f"Reference image not found: {needle}")
-    except ValueError as exc:
-        # confidence= requires OpenCV; surface a clear hint.
-        sys.exit(
-            f"Image matching failed ({exc}). Is OpenCV installed? "
-            "Run:  pip install -r requirements.txt"
-        )
 
     if box is None:
         return None
@@ -120,6 +123,122 @@ def find_target(
     logical_x = (center.x + offset_x) / scale_x
     logical_y = (center.y + offset_y) / scale_y
     return int(logical_x), int(logical_y)
+
+
+@dataclass
+class ClickSpec:
+    """Everything run_clicker needs to run — mirrors the CLI flags."""
+
+    image: str | Image.Image = "target.png"
+    interval: float = 1.0
+    confidence: float = 0.9
+    clicks: int = 0  # 0 means run forever
+    button: str = "left"
+    double: bool = False
+    grayscale: bool = False
+    region: Region | None = None
+    move_duration: float = 0.0
+    start_delay: float = 2.0
+    click_once: bool = False
+
+
+@dataclass
+class ClickerEvent:
+    """A progress update emitted by run_clicker as it scans and clicks."""
+
+    kind: str  # start|searching|miss|click|limit|failsafe|interrupted|stopped
+    clicks: int = 0
+    misses: int = 0
+    point: tuple[int, int] | None = None
+    message: str = ""
+
+
+def perform_click(
+    point: tuple[int, int],
+    *,
+    button: str = "left",
+    double: bool = False,
+    move_duration: float = 0.0,
+) -> None:
+    """Move to `point` (optionally gliding) and click it."""
+    x, y = point
+    if move_duration > 0:
+        pyautogui.moveTo(x, y, duration=move_duration)
+    pyautogui.click(
+        x, y, clicks=2 if double else 1, interval=0.05, button=button
+    )
+
+
+def run_clicker(
+    spec: ClickSpec,
+    stop_event: threading.Event | None = None,
+    on_event: Callable[[ClickerEvent], None] | None = None,
+) -> int:
+    """Scan for `spec.image` and click it until stopped, capped, or fail-safed.
+
+    Returns the total clicks made. Waits are interruptible via `stop_event`, so
+    Stop responds within one poll even at a long interval. FailSafeException and
+    KeyboardInterrupt are caught and reported as events (so the CLI keeps its
+    graceful-stop messages and a GUI worker never dies mid-run); other errors —
+    a missing image, no OpenCV, a screenshot failure — propagate for the caller
+    to handle.
+    """
+    emit = on_event or (lambda event: None)
+
+    def stopping() -> bool:
+        return stop_event is not None and stop_event.is_set()
+
+    def wait(seconds: float) -> bool:
+        """Sleep, returning True if a stop was requested during the wait."""
+        if stop_event is not None:
+            return stop_event.wait(seconds)
+        time.sleep(seconds)
+        return False
+
+    emit(ClickerEvent("start"))
+    if spec.start_delay > 0 and wait(spec.start_delay):
+        emit(ClickerEvent("stopped"))
+        return 0
+
+    clicks = 0
+    misses = 0
+    try:
+        while not stopping():
+            emit(ClickerEvent("searching", clicks=clicks, misses=misses))
+            point = find_target(
+                spec.image, spec.confidence, spec.grayscale, spec.region
+            )
+            if point is None:
+                misses += 1
+                emit(ClickerEvent("miss", clicks=clicks, misses=misses))
+            else:
+                perform_click(
+                    point,
+                    button=spec.button,
+                    double=spec.double,
+                    move_duration=spec.move_duration,
+                )
+                clicks += 1
+                misses = 0
+                emit(
+                    ClickerEvent(
+                        "click", clicks=clicks, misses=misses, point=point
+                    )
+                )
+                if spec.click_once:
+                    break
+                if spec.clicks and clicks >= spec.clicks:
+                    emit(ClickerEvent("limit", clicks=clicks))
+                    break
+            if wait(spec.interval):
+                break
+    except pyautogui.FailSafeException:
+        emit(ClickerEvent("failsafe", clicks=clicks))
+    except KeyboardInterrupt:
+        emit(ClickerEvent("interrupted", clicks=clicks))
+
+    emit(ClickerEvent("stopped", clicks=clicks))
+    return clicks
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -197,6 +316,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _print_event(event: ClickerEvent) -> None:
+    """Render a ClickerEvent as the CLI's original console lines."""
+    if event.kind == "miss":
+        print(f"  · not found (miss #{event.misses})", flush=True)
+    elif event.kind == "click":
+        x, y = event.point
+        print(f"  ✓ clicked ({x}, {y}) — total {event.clicks}", flush=True)
+    elif event.kind == "limit":
+        print(f"\nReached click limit ({event.clicks}). Done.")
+    elif event.kind == "failsafe":
+        print("\nFail-safe triggered (mouse hit a corner). Stopping.")
+    elif event.kind == "interrupted":
+        print("\nInterrupted. Stopping.")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -205,60 +339,47 @@ def main(argv: list[str] | None = None) -> int:
     if args.interval < 0:
         sys.exit("--interval cannot be negative.")
 
-    print(f"Target image : {args.image}")
-    print(f"Confidence   : {args.confidence}")
-    print(f"Interval     : {args.interval}s")
+    spec = ClickSpec(
+        image=args.image,
+        interval=args.interval,
+        confidence=args.confidence,
+        clicks=args.clicks,
+        button=args.button,
+        double=args.double,
+        grayscale=args.grayscale,
+        region=args.region,
+        move_duration=args.move_duration,
+        start_delay=args.start_delay,
+        click_once=args.click_once,
+    )
+
+    print(f"Target image : {spec.image}")
+    print(f"Confidence   : {spec.confidence}")
+    print(f"Interval     : {spec.interval}s")
     print(
         "Click limit  : "
-        + ("1 (click-once)" if args.click_once else (str(args.clicks) if args.clicks else "unlimited"))
+        + ("1 (click-once)" if spec.click_once else (str(spec.clicks) if spec.clicks else "unlimited"))
     )
-    if args.region:
-        r = args.region
+    if spec.region:
+        r = spec.region
         print(f"Search region: {r.left},{r.top} {r.width}x{r.height}")
     print("Move mouse to a screen corner or press Ctrl+C to stop.\n")
 
-    if args.start_delay > 0:
-        print(f"Starting in {args.start_delay:.0f}s — switch to the target window...")
-        time.sleep(args.start_delay)
+    if spec.start_delay > 0:
+        print(f"Starting in {spec.start_delay:.0f}s — switch to the target window...")
 
-    clicks = 0
-    misses = 0
     try:
-        while True:
-            point = find_target(
-                args.image, args.confidence, args.grayscale, args.region
-            )
-            if point is None:
-                misses += 1
-                print(f"  · not found (miss #{misses})", flush=True)
-            else:
-                x, y = point
-                if args.move_duration > 0:
-                    pyautogui.moveTo(x, y, duration=args.move_duration)
-                pyautogui.click(
-                    x,
-                    y,
-                    clicks=2 if args.double else 1,
-                    interval=0.05,
-                    button=args.button,
-                )
-                clicks += 1
-                misses = 0
-                print(f"  ✓ clicked ({x}, {y}) — total {clicks}", flush=True)
+        total = run_clicker(spec, on_event=_print_event)
+    except FileNotFoundError:
+        sys.exit(f"Reference image not found: {spec.image}")
+    except ValueError as exc:
+        # confidence= requires OpenCV; surface a clear hint.
+        sys.exit(
+            f"Image matching failed ({exc}). Is OpenCV installed? "
+            "Run:  pip install -r requirements.txt"
+        )
 
-                if args.click_once:
-                    break
-                if args.clicks and clicks >= args.clicks:
-                    print(f"\nReached click limit ({args.clicks}). Done.")
-                    break
-
-            time.sleep(args.interval)
-    except pyautogui.FailSafeException:
-        print("\nFail-safe triggered (mouse hit a corner). Stopping.")
-    except KeyboardInterrupt:
-        print("\nInterrupted. Stopping.")
-
-    print(f"Total clicks: {clicks}")
+    print(f"Total clicks: {total}")
     return 0
 
 
