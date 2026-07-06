@@ -122,6 +122,41 @@ python macro_clicker.py --button right --double --move-duration 0.2
 
 ---
 
+## 3. The desktop GUI (`macro_clicker_gui.py`)
+
+A point-and-click front end over the same engine — no flags to memorize. It lets you:
+
+- **Capture target** — drag a box straight over the screen to grab the button,
+  instead of Cmd+Shift+4 → save → rename. The crop is matched from memory.
+- **Pick region** — same drag gesture to limit the search area (faster scans).
+- **Find once** — locate the target and *flash a highlight* where it matched, so
+  you can tune the confidence slider before running for real.
+- **Live dashboard** — status light, click/miss counters, elapsed time, last-match
+  coordinates and a log, all updating while it runs (the window never freezes).
+
+### Prerequisite (Tkinter)
+
+The GUI uses Tkinter. Homebrew Python ships **without** it, so install the piece
+that matches your interpreter — for Python 3.14:
+
+```bash
+brew install python-tk@3.14
+```
+
+(python.org and most pyenv builds already include Tk, so this step is only for
+Homebrew Python. If Tk is missing, the app prints this exact hint and exits.)
+
+### Run
+
+```bash
+python macro_clicker_gui.py
+```
+
+Same macOS permissions as the CLI (**Accessibility** + **Screen Recording**).
+It works on the **main display only** — capture/region/click all target that screen.
+
+---
+
 ## Which should I use?
 
 - **Just want it to work, no terminal:** SikuliX (free) or Keyboard Maestro (paid).

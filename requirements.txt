@@ -6,3 +6,8 @@ opencv-python>=4.8.0
 
 # Screenshotting / image handling (pulled in by PyAutoGUI, pinned for clarity).
 pillow>=10.0.0
+
+# The GUI (macro_clicker_gui.py) uses Tkinter, which is part of the standard
+# library and is NOT pip-installable. On Homebrew Python, add it to match your
+# interpreter, e.g.:  brew install python-tk@3.14
+# (python.org / pyenv builds already include it.)
