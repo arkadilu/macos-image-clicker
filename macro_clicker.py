@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-macro_clicker.py — Image-search macro clicker for macOS (and Linux/Windows).
+macro_clicker.py — Image-search macro clicker for macOS.
 
 Watches the screen for a reference image (a small crop of the button/icon you
 want to click) and clicks it on an interval. Built on PyAutoGUI + OpenCV.
@@ -106,11 +106,15 @@ def find_target(
         return None
     except FileNotFoundError:
         sys.exit(f"Reference image not found: {needle}")
-    except ValueError as exc:
-        # confidence= requires OpenCV; surface a clear hint.
+    except NotImplementedError:
+        # PyScreeze raises this for confidence= when OpenCV is missing.
         sys.exit(
-            f"Image matching failed ({exc}). Is OpenCV installed? "
-            "Run:  pip install -r requirements.txt"
+            "OpenCV is not installed. Run:  pip install -r requirements.txt"
+        )
+    except ValueError as exc:
+        sys.exit(
+            f"Image matching failed ({exc}): "
+            "target image is larger than the search area."
         )
 
     if box is None:
