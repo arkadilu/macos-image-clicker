@@ -14,3 +14,6 @@ env/
 .DS_Store
 .idea/
 .vscode/
+
+# private handoff notes for the next Claude session (auto-loaded, never published)
+CLAUDE.local.md
